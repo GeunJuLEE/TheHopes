@@ -1,7 +1,5 @@
 ﻿using System;
 
-
-
 namespace readdb.Models
 {
     public class MobilityData

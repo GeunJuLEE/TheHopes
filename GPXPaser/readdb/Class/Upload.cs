@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Text;
 using System.IO;
 using MySql.Data.MySqlClient;
 using readdb.Models;
@@ -10,78 +11,79 @@ namespace readdb.Class
     public class Upload
     {
 
-        private readonly string masterTable = "objMaster";      //마스터 테이블 명
-        private readonly string success = "Success";            //성공시 반환
-        private readonly string fail = "Fail";                  //실패시 반환
-        private readonly string strConn = "Server=223.194.70.34; Port=3307; Database=mysql; Uid=officium; Pwd=library@1989; CharSet=utf8";  //nas 로그인 방법
-        private MySqlConnection conn;       //connection
-        private string sql = "";            //sql 문
-        public MySqlCommand cmd;            //mysql 실행문
+        private readonly string masterTable = "objMaster";    
+        private readonly string success = "Success";          
+        private readonly string fail = "Fail";                
+        private readonly string strConn = "Server=223.194.70.34; Port=3307; Database=mysql; Uid=officium; Pwd=library@1989; CharSet=utf8";
+        private MySqlConnection conn;      
+        private string sql = "";     
+        public MySqlCommand cmd; 
 
-        private string objName = "";        //실행될 object name
-        private string objKorName = "";     //실행될 object의 한국이름
+        private string objName = "";        // 실행될 object name
+        private string objKorName = "";     // 실행될 object의 한국이름
 
 
 
-        public Upload()                             //초기화
+        public Upload()                             // 초기화
         {
-            conn = new MySqlConnection(strConn);    //conn을 해당 서버로 객체생성
-            cmd = new MySqlCommand(sql, conn);      //sql문 해주는 cmd 생성 
-            conn.Open();                            //connection 연결
+            conn = new MySqlConnection(strConn);    // conn을 해당 서버로 객체생성
+            cmd = new MySqlCommand(sql, conn);      // sql문 해주는 cmd 생성
         }
 
         ~Upload()
         {
-            conn.Close();                           //connection 닫음
-            GC.Collect();                           //garbage collection
+            conn.Close();                           // connection 닫음
+            GC.Collect();                           // garbage collection
         }
 
         private void CreateTable()
         {
             try
             {
-                cmd.CommandText = @"CREATE TABLE `" + objName +
-                                    "`( `Time` DATETIME NOT NULL ," +
-                                    "`Latitude` DOUBLE NOT NULL ," +
+                conn.Open();
+                cmd.CommandText = @"CREATE TABLE " + objName +
+                                    " ( `Time` DATETIME NOT NULL ," +
+                                    " `Latitude` DOUBLE NOT NULL ," +
                                     " `Longitude` DOUBLE NOT NULL ," +
                                     " `Altitude` DOUBLE NULL DEFAULT NULL," +
                                     " `Ele` DOUBLE NOT NULL ," +
-                                    " PRIMARY KEY(`Time`)) ENGINE = InnoDB";        //create 문
+                                    " PRIMARY KEY(`Time`)) ENGINE = InnoDB";    // create 문
 
-                _ = cmd.ExecuteNonQuery();                                          //실행
+                _ = cmd.ExecuteNonQuery();
+                conn.Close();
                 return;
             }
             catch (Exception ex)
             {
+                conn.Close();
                 Console.WriteLine(ex);
                 return;
             }
         }
-
-
-
-
-        
 
         private bool Exists()
         {
 
             try
             {
-                cmd.CommandText = @"SELECT COUNT(*) FROM " + masterTable + " WHERE objName = '" + objName + "'";    //해당 objName이 있나 select count
-                MySqlDataReader reader = cmd.ExecuteReader();           //reader 객체 생성
-                _ = reader.Read();                                      //read
-                if (reader[0].ToString().Equals("1"))                   //read한 값이 1이면 존    
+                conn.Open();
+                cmd.CommandText = @"SELECT COUNT(*) FROM " + masterTable + " WHERE objName = '" + objName + "'";
+                MySqlDataReader reader = cmd.ExecuteReader();
+                _ = reader.Read();                             
+                if (reader[0].ToString().Equals("1"))                   // read한 값이 1이면 존재한다는 의미이다 
                 {
+                    conn.Close();
                     return true;
                 }
                 else
                 {
+                    conn.Close();
                     return false;
                 }
             }
             catch (Exception ex)
             {
+                conn.Close();
                 Console.WriteLine(ex);
                 return false;
             }
@@ -91,22 +93,27 @@ namespace readdb.Class
         {
             if (Exists())
             {
+                conn.Close();
                 return;
             }
-            else                                                                //해당 objName이 없으면
+            else // 해당 objName이 없으면
             {
                 try
                 {
+                    conn.Open();
                     cmd.CommandText = @"INSERT INTO " +
                                         masterTable + " " +
-                                        "VALUES(@ObjName, @ObjKorName)";        //insert문
-                    cmd.Parameters.AddWithValue("@objName", objName);           //parameter 추가
-                    cmd.Parameters.AddWithValue("@objKorName", objKorName);     //parameter 추가
-                    _ = cmd.ExecuteNonQuery();                                  //실행
+                                        "VALUES(@ObjName, @ObjKorName, 0, 0)";  
+                    cmd.Parameters.AddWithValue("@ObjName", objName); 
+                    cmd.Parameters.AddWithValue("@ObjKorName", objKorName);
+                    Console.WriteLine(cmd.CommandText);
+                    _ = cmd.ExecuteNonQuery(); 
+                    conn.Close();
                     return;
                 }
                 catch (Exception ex)
                 {
+                    conn.Close();
                     Console.WriteLine(ex);
                     return;
                 }
@@ -115,15 +122,17 @@ namespace readdb.Class
         }
 
 
-
-
         private void Set(DirectoryInfo directoryInfo)
         {
             try
             {
-                string[] vs = directoryInfo.Name.Split(Convert.ToChar("."));        //.으로 파싱
-                objName = vs[0].ToLower();                                          //앞에 글자들 소문자로 바꾸고 값 대입
-                objKorName = vs[1];                                                 //뒤에 글자 대입
+                // 폴더 이름은 . (점) 을 기준으로 앞, 뒤로 나눠서 vs에 저장한다 0 번쨰 인덱스에 앞의 내용이, 1번째 인덱스에 뒤의 내용을 저장 
+                string[] vs = directoryInfo.Name.Split(Convert.ToChar("."));        
+                objName = vs[0].ToLower();
+                // vs[1]의 string을 ks_c_5601-1987의 형식으로 인코딩 해주어야 한다 
+                byte[] bytes = Encoding.GetEncoding("ks_c_5601-1987").GetBytes(vs[1].ToCharArray());
+                objKorName = Encoding.GetEncoding("ks_c_5601-1987").GetString(bytes);
+                // System.Diagnostics.Debug.WriteLine(objKorName); 으로 제대로 인코딩 되었는지 확인 가능
                 return;
             }
             catch(Exception ex)
@@ -134,49 +143,47 @@ namespace readdb.Class
         }
 
 
-
         public void Run(DirectoryInfo directoryInfo)
         {
-            try
-            {
-                Set(directoryInfo);                             //DirectoryInfo로 Set
-                InsertObjName();                                //마스터테이블에 Insert하는 함
-                CreateTable();                                  //테이블 만드는 함수
-                Console.WriteLine("ready for " + objName);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex);
-            }
+            Set(directoryInfo);                            
+            Console.WriteLine("objName is " + objName);
+            Console.WriteLine("objKorName is " + objKorName);
+
+            // 아래 두 줄 주석처리 되어 있다면 해제해야 됩니다
+            InsertObjName();
+            CreateTable();                        
+            Console.WriteLine("ready for " + objName);
         }
 
 
-
-
-
-
-        public void InsertData(MobilityData mobilityData)                               //raw data insert 함수
+        public void InsertData(MobilityData mobilityData) //raw data insert 함수
         {
             try
             {
+                conn.Open();
+
+                // 파라미터 초기화 시켜주는 부분 이거 없으면 "Parameter '@Time' has already been defined" 계속 뜸
+                cmd.Parameters.Clear();
+
                 cmd.CommandText = @"INSERT INTO " +
                                     objName + " " +
                                     "VALUES(@Time, @Latitude, @Longitude, NULL, @Ele)"; //insert문
-                cmd.Parameters.AddWithValue("@Time", mobilityData.Time);                //parameter 추가
-                cmd.Parameters.AddWithValue("@Latitude", mobilityData.Latitude);        //parameter 추가
-                cmd.Parameters.AddWithValue("@Longitude", mobilityData.Longitude);      //parameter 추가
-                cmd.Parameters.AddWithValue("@Ele", mobilityData.Ele);                  //parameter 추가
-                _ = cmd.ExecuteNonQuery();                                              //실행
+
+                cmd.Parameters.AddWithValue("@Time", mobilityData.Time);               
+                cmd.Parameters.AddWithValue("@Latitude", mobilityData.Latitude);       
+                cmd.Parameters.AddWithValue("@Longitude", mobilityData.Longitude);   
+                cmd.Parameters.AddWithValue("@Ele", mobilityData.Ele);                  
+                _ = cmd.ExecuteNonQuery();                                      
+                conn.Close();
                 return;
             }
             catch (Exception ex)
             {
+                conn.Close();
                 Console.WriteLine(ex);
                 return;
             }
 
         }
-
-
     }
 }
