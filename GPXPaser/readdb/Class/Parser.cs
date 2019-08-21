@@ -20,12 +20,12 @@ namespace readdb
 
         public Parser()
         {
-
+		// 생성자
         }
 
         ~Parser()
         {
-            GC.Collect();       //가비지 콜렉터
+            GC.Collect();       // 가비지 콜렉터
         }
         
 
